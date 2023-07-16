@@ -16,18 +16,15 @@ name = "bulletproof"
 crate-type = ["lib"]
 
 [dependencies]
-itertools = "0.7.8"
-serde = "1.0"
-serde_derive = "1.0"
-curv-kzen = { version = "0.10", default-features = false }
-sha2 = "0.9"
-generic-array = "0.14"
+itertools = "0.11.0"
+serde = "1.0.164"
+serde_derive = "1.0.164"
+curv-kzen = { version = "0.10", default-features = false, path = "../curv", features = ["num-bigint"] }
+sha2 = "0.10.7"
+generic-array = "0.14.7"
 
 [dev-dependencies]
 criterion = "0.2"
-
-[features]
-default = ["curv-kzen/rust-gmp-kzen"]
 
 [[bench]]
 name = "range_proof"

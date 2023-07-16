@@ -18,31 +18,31 @@ version 3 of the License, or (at your option) any later version.
 // based on the paper: https://eprint.iacr.org/2017/1066.pdf
 use curv::arithmetic::traits::*;
 use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
-use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+use curv::elliptic::curves::{Curve, Point, Scalar};
 use curv::BigInt;
 use sha2::Sha256;
 
 use Errors::{self, InnerProductError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct InnerProductArg {
-    pub(super) L: Vec<Point<Secp256k1>>,
-    pub(super) R: Vec<Point<Secp256k1>>,
+pub struct InnerProductArg<E: Curve> {
+    pub(super) L: Vec<Point<E>>,
+    pub(super) R: Vec<Point<E>>,
     pub(super) a_tag: BigInt,
     pub(super) b_tag: BigInt,
 }
 
-impl InnerProductArg {
+impl<E: Curve> InnerProductArg<E> {
     pub fn prove(
-        G: &[Point<Secp256k1>],
-        H: &[Point<Secp256k1>],
-        ux: &Point<Secp256k1>,
-        P: &Point<Secp256k1>,
+        G: &[Point<E>],
+        H: &[Point<E>],
+        ux: &Point<E>,
+        P: &Point<E>,
         a: &[BigInt],
         b: &[BigInt],
-        mut L_vec: Vec<Point<Secp256k1>>,
-        mut R_vec: Vec<Point<Secp256k1>>,
-    ) -> InnerProductArg {
+        mut L_vec: Vec<Point<E>>,
+        mut R_vec: Vec<Point<E>>,
+    ) -> InnerProductArg<E> {
         let n = G.len();
 
         // All of the input vectors must have the same length.
@@ -61,19 +61,19 @@ impl InnerProductArg {
             let (G_L, G_R) = G.split_at(n);
             let (H_L, H_R) = H.split_at(n);
 
-            let c_L = inner_product(a_L, b_R);
-            let c_R = inner_product(a_R, b_L);
+            let c_L = inner_product::<E>(a_L, b_R);
+            let c_R = inner_product::<E>(a_R, b_L);
 
             // Note that no element in vectors a_L and b_R can be 0
             // since 0 is an invalid secret key!
             //
             // L = <a_L * G_R> + <b_R * H_L> + c_L * ux
-            let c_L_fe = Scalar::<Secp256k1>::from(&c_L);
-            let ux_CL: Point<Secp256k1> = ux * &c_L_fe;
+            let c_L_fe = Scalar::<E>::from(&c_L);
+            let ux_CL: Point<E> = ux * &c_L_fe;
             let aL_GR = G_R.iter().zip(a_L).fold(ux_CL, |acc, x| {
                 if x.1 != &BigInt::zero() {
-                    let aLi = Scalar::<Secp256k1>::from(x.1);
-                    let aLi_GRi: Point<Secp256k1> = x.0 * &aLi;
+                    let aLi = Scalar::<E>::from(x.1);
+                    let aLi_GRi: Point<E> = x.0 * &aLi;
                     acc + &aLi_GRi
                 } else {
                     acc
@@ -81,8 +81,8 @@ impl InnerProductArg {
             });
             let L = H_L.iter().zip(b_R).fold(aL_GR, |acc, x| {
                 if x.1 != &BigInt::zero() {
-                    let bRi = Scalar::<Secp256k1>::from(x.1);
-                    let bRi_HLi: Point<Secp256k1> = x.0 * &bRi;
+                    let bRi = Scalar::<E>::from(x.1);
+                    let bRi_HLi: Point<E> = x.0 * &bRi;
                     acc + &bRi_HLi
                 } else {
                     acc
@@ -93,12 +93,12 @@ impl InnerProductArg {
             // since 0 is an invalid secret key!
             //
             // R = <a_R * G_L> + <b_L * H_R> + c_R * ux
-            let c_R_fe = Scalar::<Secp256k1>::from(&c_R);
-            let ux_CR: Point<Secp256k1> = ux * &c_R_fe;
+            let c_R_fe = Scalar::<E>::from(&c_R);
+            let ux_CR: Point<E> = ux * &c_R_fe;
             let aR_GL = G_L.iter().zip(a_R).fold(ux_CR, |acc, x| {
                 if x.1 != &BigInt::zero() {
-                    let aRi = Scalar::<Secp256k1>::from(x.1);
-                    let aRi_GLi: Point<Secp256k1> = x.0 * &aRi;
+                    let aRi = Scalar::<E>::from(x.1);
+                    let aRi_GLi: Point<E> = x.0 * &aRi;
                     acc + &aRi_GLi
                 } else {
                     acc
@@ -106,8 +106,8 @@ impl InnerProductArg {
             });
             let R = H_R.iter().zip(b_L).fold(aR_GL, |acc, x| {
                 if x.1 != &BigInt::zero() {
-                    let bLi = Scalar::<Secp256k1>::from(x.1);
-                    let bLi_HRi: Point<Secp256k1> = x.0 * &bLi;
+                    let bLi = Scalar::<E>::from(x.1);
+                    let bLi_HRi: Point<E> = x.0 * &bLi;
                     acc + &bLi_HRi
                 } else {
                     acc
@@ -116,7 +116,7 @@ impl InnerProductArg {
 
             let x = Sha256::new().chain_points([&L, &R, ux]).result_scalar();
             let x_bn = x.to_bigint();
-            let order = Scalar::<Secp256k1>::group_order();
+            let order = Scalar::<E>::group_order();
             let x_inv_fe = x.invert().unwrap();
 
             let a_new = (0..n)
@@ -143,7 +143,7 @@ impl InnerProductArg {
                     let GRx = &G_R[i] * &x;
                     GRx + GLx_inv
                 })
-                .collect::<Vec<Point<Secp256k1>>>();
+                .collect::<Vec<Point<E>>>();
             //   G = &mut G_new[..];
 
             let H_new = (0..n)
@@ -152,7 +152,7 @@ impl InnerProductArg {
                     let HRx_inv = &H_R[i] * &x_inv_fe;
                     HLx + HRx_inv
                 })
-                .collect::<Vec<Point<Secp256k1>>>();
+                .collect::<Vec<Point<E>>>();
             //    H = &mut H_new[..];
 
             L_vec.push(L);
@@ -170,10 +170,10 @@ impl InnerProductArg {
 
     pub fn verify(
         &self,
-        g_vec: &[Point<Secp256k1>],
-        hi_tag: &[Point<Secp256k1>],
-        ux: &Point<Secp256k1>,
-        P: &Point<Secp256k1>,
+        g_vec: &[Point<E>],
+        hi_tag: &[Point<E>],
+        ux: &Point<E>,
+        P: &Point<E>,
     ) -> Result<(), Errors> {
         let G = g_vec;
         let H = hi_tag;
@@ -193,12 +193,12 @@ impl InnerProductArg {
                 .chain_points([&self.L[0], &self.R[0], ux])
                 .result_scalar();
             let x_bn = x.to_bigint();
-            let order = Scalar::<Secp256k1>::group_order();
+            let order = Scalar::<E>::group_order();
             let x_inv_fe = x.invert().unwrap();
             let x_sq_bn = BigInt::mod_mul(&x_bn, &x_bn, order);
             let x_inv_sq_bn = BigInt::mod_mul(&x_inv_fe.to_bigint(), &x_inv_fe.to_bigint(), order);
-            let x_sq_fe = Scalar::<Secp256k1>::from(&x_sq_bn);
-            let x_inv_sq_fe = Scalar::<Secp256k1>::from(&x_inv_sq_bn);
+            let x_sq_fe = Scalar::<E>::from(&x_sq_bn);
+            let x_inv_sq_fe = Scalar::<E>::from(&x_inv_sq_bn);
 
             let G_new = (0..n)
                 .map(|i| {
@@ -206,7 +206,7 @@ impl InnerProductArg {
                     let GRx = &G_R[i] * &x;
                     GRx + GLx_inv
                 })
-                .collect::<Vec<Point<Secp256k1>>>();
+                .collect::<Vec<Point<E>>>();
             //   G = &mut G_new[..];
 
             let H_new = (0..n)
@@ -215,7 +215,7 @@ impl InnerProductArg {
                     let HRx_inv = &H_R[i] * &x_inv_fe;
                     HLx + HRx_inv
                 })
-                .collect::<Vec<Point<Secp256k1>>>();
+                .collect::<Vec<Point<E>>>();
             //    H = &mut H_new[..];
             let Lx_sq = &self.L[0] * &x_sq_fe;
             let Rx_sq_inv = &self.R[0] * &x_inv_sq_fe;
@@ -229,8 +229,8 @@ impl InnerProductArg {
             return ip.verify(&G_new, &H_new, ux, &P_tag);
         }
 
-        let a_fe = Scalar::<Secp256k1>::from(&self.a_tag);
-        let b_fe = Scalar::<Secp256k1>::from(&self.b_tag);
+        let a_fe = Scalar::<E>::from(&self.a_tag);
+        let b_fe = Scalar::<E>::from(&self.b_tag);
         let c = &a_fe * &b_fe;
         let Ga = &G[0] * &a_fe;
         let Hb = &H[0] * &b_fe;
@@ -252,15 +252,15 @@ impl InnerProductArg {
     ///
     pub fn fast_verify(
         &self,
-        g_vec: &[Point<Secp256k1>],
-        hi_tag: &[Point<Secp256k1>],
-        ux: &Point<Secp256k1>,
-        P: &Point<Secp256k1>,
+        g_vec: &[Point<E>],
+        hi_tag: &[Point<E>],
+        ux: &Point<E>,
+        P: &Point<E>,
     ) -> Result<(), Errors> {
         let G = g_vec;
         let H = hi_tag;
         let n = G.len();
-        let order = Scalar::<Secp256k1>::group_order();
+        let order = Scalar::<E>::group_order();
 
         // All of the input vectors must have the same length.
         assert_eq!(G.len(), n);
@@ -279,7 +279,7 @@ impl InnerProductArg {
         let mut minus_x_inv_sq_vec: Vec<BigInt> = Vec::with_capacity(lg_n);
         let mut allinv = BigInt::one();
         for (Li, Ri) in self.L.iter().zip(self.R.iter()) {
-            let x: Scalar<Secp256k1> = Sha256::new().chain_points([Li, Ri, ux]).result_scalar();
+            let x: Scalar<E> = Sha256::new().chain_points([Li, Ri, ux]).result_scalar();
             let x_bn = x.to_bigint();
             let x_inv_fe = x.invert().unwrap();
             let x_inv_bn = x_inv_fe.to_bigint();
@@ -322,20 +322,20 @@ impl InnerProductArg {
         scalars.extend_from_slice(&minus_x_sq_vec);
         scalars.extend_from_slice(&minus_x_inv_sq_vec);
 
-        let mut points: Vec<Point<Secp256k1>> = Vec::with_capacity(2 * n + 2 * lg_n + 1);
+        let mut points: Vec<Point<E>> = Vec::with_capacity(2 * n + 2 * lg_n + 1);
         points.extend_from_slice(g_vec);
         points.extend_from_slice(hi_tag);
         points.extend_from_slice(&self.L);
         points.extend_from_slice(&self.R);
 
         let c = BigInt::mod_mul(&self.a_tag, &self.b_tag, order);
-        let ux_c = ux * &Scalar::<Secp256k1>::from(&c);
+        let ux_c = ux * &Scalar::<E>::from(&c);
 
         let tot_len = points.len();
 
         let expect_P = (0..tot_len)
-            .map(|i| &points[i] * &Scalar::<Secp256k1>::from(&scalars[i]))
-            .fold(ux_c, |acc, x| acc + x as Point<Secp256k1>);
+            .map(|i| &points[i] * &Scalar::<E>::from(&scalars[i]))
+            .fold(ux_c, |acc, x| acc + x as Point<E>);
 
         if *P == expect_P {
             Ok(())
@@ -345,14 +345,14 @@ impl InnerProductArg {
     }
 }
 
-fn inner_product(a: &[BigInt], b: &[BigInt]) -> BigInt {
+fn inner_product<E: Curve>(a: &[BigInt], b: &[BigInt]) -> BigInt {
     assert_eq!(
         a.len(),
         b.len(),
         "inner_product(a,b): lengths of vectors do not match"
     );
     let out = BigInt::zero();
-    let order = Scalar::<Secp256k1>::group_order();
+    let order = Scalar::<E>::group_order();
     let out = a.iter().zip(b).fold(out, |acc, x| {
         let aibi = BigInt::mod_mul(x.0, x.1, order);
         BigInt::mod_add(&acc, &aibi, order)
@@ -364,15 +364,16 @@ fn inner_product(a: &[BigInt], b: &[BigInt]) -> BigInt {
 mod tests {
     use curv::arithmetic::traits::*;
     use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
-    use curv::elliptic::curves::secp256_k1::hash_to_curve::generate_random_point;
-    use curv::elliptic::curves::{secp256_k1::Secp256k1, Point, Scalar};
+    use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use curv::BigInt;
     use proofs::inner_product::InnerProductArg;
     use sha2::Sha512;
 
+    use crate::proofs::range_proof::generate_random_point;
+
     fn test_helper(n: usize) {
         let KZen: &[u8] = &[75, 90, 101, 110];
-        let kzen_label = BigInt::from_bytes(KZen);
+        let kzen_label = BigInt::from_bytes_be(KZen);
 
         let g_vec = (0..n)
             .map(|i| {
@@ -380,7 +381,7 @@ mod tests {
                 let hash_i = Sha512::new().chain_bigint(&kzen_label_i).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_i))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // can run in parallel to g_vec:
         let h_vec = (0..n)
@@ -389,7 +390,7 @@ mod tests {
                 let hash_j = Sha512::new().chain_bigint(&kzen_label_j).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_j))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         let label = BigInt::from(1);
         let hash = Sha512::new().chain_bigint(&label).result_bigint();
@@ -397,51 +398,51 @@ mod tests {
 
         let a: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
 
         let b: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
-        let c = super::inner_product(&a, &b);
+        let c = super::inner_product::<Ed25519>(&a, &b);
 
-        let y = Scalar::<Secp256k1>::random();
-        let order = Scalar::<Secp256k1>::group_order();
+        let y = Scalar::<Ed25519>::random();
+        let order = Scalar::<Ed25519>::group_order();
         let yi = (0..n)
             .map(|i| BigInt::mod_pow(&y.to_bigint(), &BigInt::from(i as u32), order))
             .collect::<Vec<BigInt>>();
 
         let yi_inv = (0..n)
             .map(|i| {
-                let yi_fe = Scalar::<Secp256k1>::from(&yi[i]);
+                let yi_fe = Scalar::<Ed25519>::from(&yi[i]);
                 yi_fe.invert().unwrap()
             })
-            .collect::<Vec<Scalar<Secp256k1>>>();
+            .collect::<Vec<Scalar<Ed25519>>>();
 
         let hi_tag = (0..n)
             .map(|i| &h_vec[i] * &yi_inv[i])
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // R = <a * G> + <b_L * H_R> + c * ux
-        let c_fe = Scalar::<Secp256k1>::from(&c);
-        let ux_c: Point<Secp256k1> = &Gx * &c_fe;
+        let c_fe = Scalar::<Ed25519>::from(&c);
+        let ux_c: Point<Ed25519> = &Gx * &c_fe;
         let a_G = (0..n)
             .map(|i| {
-                let ai = Scalar::<Secp256k1>::from(&a[i]);
+                let ai = Scalar::<Ed25519>::from(&a[i]);
                 &g_vec[i] * &ai
             })
-            .fold(ux_c, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(ux_c, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
         let P = (0..n)
             .map(|i| {
-                let bi = Scalar::<Secp256k1>::from(&b[i]);
+                let bi = Scalar::<Ed25519>::from(&b[i]);
                 &hi_tag[i] * &bi
             })
-            .fold(a_G, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(a_G, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
 
         let L_vec = Vec::with_capacity(n);
         let R_vec = Vec::with_capacity(n);
@@ -452,7 +453,7 @@ mod tests {
 
     fn test_helper_fast_verify(n: usize) {
         let KZen: &[u8] = &[75, 90, 101, 110];
-        let kzen_label = BigInt::from_bytes(KZen);
+        let kzen_label = BigInt::from_bytes_be(KZen);
 
         let g_vec = (0..n)
             .map(|i| {
@@ -460,7 +461,7 @@ mod tests {
                 let hash_i = Sha512::new().chain_bigint(&kzen_label_i).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_i))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // can run in parallel to g_vec:
         let h_vec = (0..n)
@@ -469,7 +470,7 @@ mod tests {
                 let hash_j = Sha512::new().chain_bigint(&kzen_label_j).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_j))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         let label = BigInt::from(1);
         let hash = Sha512::new().chain_bigint(&label).result_bigint();
@@ -477,51 +478,51 @@ mod tests {
 
         let a: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
 
         let b: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
-        let c = super::inner_product(&a, &b);
+        let c = super::inner_product::<Ed25519>(&a, &b);
 
-        let y = Scalar::<Secp256k1>::random();
-        let order = Scalar::<Secp256k1>::group_order();
+        let y = Scalar::<Ed25519>::random();
+        let order = Scalar::<Ed25519>::group_order();
         let yi = (0..n)
             .map(|i| BigInt::mod_pow(&y.to_bigint(), &BigInt::from(i as u32), order))
             .collect::<Vec<BigInt>>();
 
         let yi_inv = (0..n)
             .map(|i| {
-                let yi_fe = Scalar::<Secp256k1>::from(&yi[i]);
+                let yi_fe = Scalar::<Ed25519>::from(&yi[i]);
                 yi_fe.invert().unwrap()
             })
-            .collect::<Vec<Scalar<Secp256k1>>>();
+            .collect::<Vec<Scalar<Ed25519>>>();
 
         let hi_tag = (0..n)
             .map(|i| &h_vec[i] * &yi_inv[i])
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // R = <a * G> + <b_L * H_R> + c * ux
-        let c_fe = Scalar::<Secp256k1>::from(&c);
-        let ux_c: Point<Secp256k1> = &Gx * &c_fe;
+        let c_fe = Scalar::<Ed25519>::from(&c);
+        let ux_c: Point<Ed25519> = &Gx * &c_fe;
         let a_G = (0..n)
             .map(|i| {
-                let ai = Scalar::<Secp256k1>::from(&a[i]);
+                let ai = Scalar::<Ed25519>::from(&a[i]);
                 &g_vec[i] * &ai
             })
-            .fold(ux_c, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(ux_c, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
         let P = (0..n)
             .map(|i| {
-                let bi = Scalar::<Secp256k1>::from(&b[i]);
+                let bi = Scalar::<Ed25519>::from(&b[i]);
                 &hi_tag[i] * &bi
             })
-            .fold(a_G, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(a_G, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
 
         let L_vec = Vec::with_capacity(n);
         let R_vec = Vec::with_capacity(n);
@@ -532,7 +533,7 @@ mod tests {
 
     fn test_helper_non_power_2(m: usize, n: usize, a: &[BigInt], b: &[BigInt]) {
         let KZen: &[u8] = &[75, 90, 101, 110];
-        let kzen_label = BigInt::from_bytes(KZen);
+        let kzen_label = BigInt::from_bytes_be(KZen);
 
         let g_vec = (0..n)
             .map(|i| {
@@ -540,7 +541,7 @@ mod tests {
                 let hash_i = Sha512::new().chain_bigint(&kzen_label_i).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_i))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // can run in parallel to g_vec:
         let h_vec = (0..n)
@@ -549,48 +550,48 @@ mod tests {
                 let hash_j = Sha512::new().chain_bigint(&kzen_label_j).result_bigint();
                 generate_random_point(&Converter::to_bytes(&hash_j))
             })
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         let label = BigInt::from(1);
         let hash = Sha512::new().chain_bigint(&label).result_bigint();
         let Gx = generate_random_point(&Converter::to_bytes(&hash));
 
-        let c = super::inner_product(a, b);
+        let c = super::inner_product::<Ed25519>(a, b);
 
-        let y = Scalar::<Secp256k1>::random();
-        let order = Scalar::<Secp256k1>::group_order();
+        let y = Scalar::<Ed25519>::random();
+        let order = Scalar::<Ed25519>::group_order();
         let yi = (0..n)
             .map(|i| BigInt::mod_pow(&y.to_bigint(), &BigInt::from(i as u32), order))
             .collect::<Vec<BigInt>>();
 
         let yi_inv = (0..n)
             .map(|i| {
-                let yi_fe = Scalar::<Secp256k1>::from(&yi[i]);
+                let yi_fe = Scalar::<Ed25519>::from(&yi[i]);
                 yi_fe.invert().unwrap()
             })
-            .collect::<Vec<Scalar<Secp256k1>>>();
+            .collect::<Vec<Scalar<Ed25519>>>();
 
         let hi_tag = (0..n)
             .map(|i| &h_vec[i] * &yi_inv[i])
-            .collect::<Vec<Point<Secp256k1>>>();
+            .collect::<Vec<Point<Ed25519>>>();
 
         // R = <a * G> + <b_L * H_R> + c * ux
-        let c_fe = Scalar::<Secp256k1>::from(&c);
+        let c_fe = Scalar::<Ed25519>::from(&c);
 
-        let ux_c: Point<Secp256k1> = &Gx * &c_fe;
+        let ux_c: Point<Ed25519> = &Gx * &c_fe;
 
         let a_G = (0..m)
             .map(|i| {
-                let ai = Scalar::<Secp256k1>::from(&a[i]);
+                let ai = Scalar::<Ed25519>::from(&a[i]);
                 &g_vec[i] * &ai
             })
-            .fold(ux_c, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(ux_c, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
         let P = (0..m)
             .map(|i| {
-                let bi = Scalar::<Secp256k1>::from(&b[i]);
+                let bi = Scalar::<Ed25519>::from(&b[i]);
                 &hi_tag[i] * &bi
             })
-            .fold(a_G, |acc, x: Point<Secp256k1>| acc + x as Point<Secp256k1>);
+            .fold(a_G, |acc, x: Point<Ed25519>| acc + x as Point<Ed25519>);
 
         let L_vec = Vec::with_capacity(n);
         let R_vec = Vec::with_capacity(n);
@@ -663,14 +664,14 @@ mod tests {
         let n: usize = 9;
         let mut a: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
 
         let mut b: Vec<_> = (0..n)
             .map(|_| {
-                let rand = Scalar::<Secp256k1>::random();
+                let rand = Scalar::<Ed25519>::random();
                 rand.to_bigint()
             })
             .collect();
