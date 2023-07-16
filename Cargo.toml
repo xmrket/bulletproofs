@@ -19,7 +19,7 @@ crate-type = ["lib"]
 itertools = "0.11.0"
 serde = "1.0.164"
 serde_derive = "1.0.164"
-curv-kzen = { git = "https://github.com/xmrket/curv.git", branch = "master" }
+curv-kzen = { git = "https://github.com/xmrket/curv.git" }
 sha2 = "0.10.7"
 generic-array = "0.14.7"
 
