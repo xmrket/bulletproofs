@@ -30,7 +30,7 @@ use sha2::Sha256;
 
 use itertools::iterate;
 
-use Errors::{self, WeightedInnerProdError};
+use crate::Errors::{self, WeightedInnerProdError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WeightedInnerProdArg<E: Curve> {
@@ -544,8 +544,8 @@ mod tests {
     use sha2::{Sha256, Sha512};
 
     use itertools::iterate;
-    use proofs::weighted_inner_product::weighted_inner_product;
-    use proofs::weighted_inner_product::WeightedInnerProdArg;
+    use crate::proofs::weighted_inner_product::weighted_inner_product;
+    use crate::proofs::weighted_inner_product::WeightedInnerProdArg;
 
     use crate::proofs::range_proof::generate_random_point;
 

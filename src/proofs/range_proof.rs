@@ -25,9 +25,9 @@ use sha2::Sha256;
 
 use generic_array::{typenum::Unsigned, GenericArray};
 use itertools::iterate;
-use proofs::inner_product::InnerProductArg;
+use crate::proofs::inner_product::InnerProductArg;
 use std::ops::{Shl, Shr};
-use Errors::{self, RangeProofError};
+use crate::Errors::{self, RangeProofError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RangeProof<E: Curve> {
@@ -803,7 +803,7 @@ mod tests {
     use curv::BigInt;
     use sha2::Sha512;
 
-    use proofs::range_proof::RangeProof;
+    use crate::proofs::range_proof::RangeProof;
 
     use crate::proofs::range_proof::generate_random_point;
 

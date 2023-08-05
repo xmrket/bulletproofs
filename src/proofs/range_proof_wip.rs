@@ -31,9 +31,9 @@ use sha2::{Sha256, Sha512};
 
 use generic_array::{typenum::Unsigned, GenericArray};
 use itertools::iterate;
-use proofs::weighted_inner_product::WeightedInnerProdArg;
+use crate::proofs::weighted_inner_product::WeightedInnerProdArg;
 use std::ops::{Shl, Shr};
-use Errors::{self, RangeProofError};
+use crate::Errors::{self, RangeProofError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StatementRP<E: Curve> {
@@ -632,7 +632,7 @@ mod tests {
     use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use curv::BigInt;
 
-    use proofs::range_proof_wip::{RangeProofWIP, StatementRP};
+    use crate::proofs::range_proof_wip::{RangeProofWIP, StatementRP};
 
     pub fn test_helper(seed: &BigInt, n: usize, m: usize) {
         // generate stmt

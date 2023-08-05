@@ -22,7 +22,7 @@ use curv::elliptic::curves::{Curve, Point, Scalar};
 use curv::BigInt;
 use sha2::Sha256;
 
-use Errors::{self, InnerProductError};
+use crate::Errors::{self, InnerProductError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InnerProductArg<E: Curve> {
@@ -366,7 +366,7 @@ mod tests {
     use curv::cryptographic_primitives::hashing::{Digest, DigestExt};
     use curv::elliptic::curves::{Ed25519, Point, Scalar};
     use curv::BigInt;
-    use proofs::inner_product::InnerProductArg;
+    use crate::proofs::inner_product::InnerProductArg;
     use sha2::Sha512;
 
     use crate::proofs::range_proof::generate_random_point;
